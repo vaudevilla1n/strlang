@@ -25,7 +25,7 @@ import (
 	"os"
 	"fmt"
 	"bufio"
-	"strlang/lexer"
+	"strlang/lex"
 )
 
 func run(line []byte) {
