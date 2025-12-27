@@ -7,7 +7,7 @@ package main
 	term		::= primary '+' primary
 	primary		::= func | string | group
 	func		::= builtin '::(' expression (',' expression)* ')'
-	string		::= string literal
+	string		::= text
 	group		::= '(' expression ')'
 	builtin		::= any builtin function
 
@@ -22,11 +22,34 @@ package main
 */
 
 import (
+	"os"
+	"fmt"
+	"bufio"
 	"strlang/lexer"
-	"strlang/quote"
 )
 
+func run(line []byte) {
+	lex := lexer.NewLexer(line);
+	for lex.Next() {
+		t := lex.Token()
+		fmt.Println(t.String())
+	}
+}
+
 func main() {
-	quote.Quote();
-	lexer.LaLa();
+	input := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print(">>> ")
+
+		if (!input.Scan()) {
+			fmt.Print("\n")
+			break
+		}
+
+		line := input.Text()
+		
+		if len(line) > 0 {
+			run(line)
+		}
+	}
 }
