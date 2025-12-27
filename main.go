@@ -22,7 +22,7 @@ package main
 */
 
 import (
-	strlang/lexer"
+	"strlang/lexer"
 	"strlang/quote"
 )
 
