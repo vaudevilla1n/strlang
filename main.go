@@ -1,5 +1,3 @@
-package main
-
 /*
 	grammar
 
@@ -20,26 +18,47 @@ package main
 	literal		::= string literal
 	operator	::= '+'
 */
+package main
 
 import (
 	"os"
 	"fmt"
 	"bufio"
 	"strlang/lex"
+	"strlang/parse"
 )
 
 func run(line string) {
 	lexer := lex.NewLexer(line);
 	
 	var t lex.Token
-	for t = lexer.Next(); t.Kind != lex.EOF && t.Kind != lex.ILLEGAL; t = lexer.Next() {
-		fmt.Println(t.String())
+	var tokens []lex.Token
+	for {
+		t = lexer.Next()
+
+		if (t.Kind == lex.ILLEGAL) {
+			break
+		}
+
+		tokens = append(tokens, t)
+
+		if t.Kind == lex.EOF {
+			break
+		}
 	}
 
 	if t.Kind == lex.ILLEGAL {
 		fmt.Fprintf(os.Stderr, "lexer error: pos %d: %s\n", t.Pos, t.Text)
-	} else {
-		fmt.Println(t.String())
+		return
+	} 
+
+	for _, token := range tokens {
+		fmt.Println(token.String())
+	}
+
+	parser := parse.NewParser(tokens)
+	for n := parser.Next(); n.Kind != parse.EOF && n.Kind != parse.ERROR; n = parser.Next() {
+		fmt.Println(n.String())
 	}
 }
 
