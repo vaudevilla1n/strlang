@@ -7,7 +7,7 @@ package main
 	term		::= primary '+' primary
 	primary		::= func | string | group
 	func		::= builtin '::(' expression (',' expression)* ')'
-	string		::= text
+	string		::= '"' text '"' | ''' text '''
 	group		::= '(' expression ')'
 	builtin		::= any builtin function
 
@@ -28,10 +28,17 @@ import (
 	"strlang/lex"
 )
 
-func run(line []byte) {
-	lex := lexer.NewLexer(line);
-	for lex.Next() {
-		t := lex.Token()
+func run(line string) {
+	lexer := lex.NewLexer(line);
+	
+	var t lex.Token
+	for t = lexer.Next(); t.Kind != lex.EOF && t.Kind != lex.ILLEGAL; t = lexer.Next() {
+		fmt.Println(t.String())
+	}
+
+	if t.Kind == lex.ILLEGAL {
+		fmt.Fprintf(os.Stderr, "lexer error: pos %d: %s\n", t.Pos, t.Text)
+	} else {
 		fmt.Println(t.String())
 	}
 }
