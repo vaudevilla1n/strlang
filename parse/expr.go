@@ -12,14 +12,16 @@ const (
 	BINARY	ExprKind = iota
 	FUNC
 	GROUP
-	LITERAL
+	STRING
+	NUMBER
 )
 
 var exprKindName = map[ExprKind]string {
 	BINARY:		"BINARY",
 	FUNC:		"FUNC",
 	GROUP:		"GROUP",
-	LITERAL:	"LITERAL",
+	STRING:		"STRING",
+	NUMBER:		"NUMBER",
 }
 
 type Expr interface {
@@ -86,15 +88,28 @@ func (g *groupExpr) String() string {
 	return fmt.Sprintf("(%s)", g.expr.String())
 }
 
-type literalExpr struct {
+type stringExpr struct {
 	str lex.Token
 }
-func (l *literalExpr) Kind() ExprKind {
-	return LITERAL
+func (s *stringExpr) Kind() ExprKind {
+	return STRING
 }
-func (l *literalExpr) Pos() (int, int) {
-	return l.str.Pos, l.str.Pos
+func (s *stringExpr) Pos() (int, int) {
+	return s.str.Pos, s.str.Pos
 }
-func (l *literalExpr) String() string {
-	return l.str.Text
+func (s *stringExpr) String() string {
+	return s.str.Text
+}
+
+type numberExpr struct {
+	num lex.Token
+}
+func (n *numberExpr) Kind() ExprKind {
+	return NUMBER
+}
+func (n *numberExpr) Pos() (int, int) {
+	return n.num.Pos, n.num.Pos
+}
+func (n *numberExpr) String() string {
+	return n.num.Text
 }

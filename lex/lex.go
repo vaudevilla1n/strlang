@@ -16,7 +16,8 @@ const (
 	PLUS
 	COMMA
 	BLOCK	// ::
-	LITERAL
+	STRING
+	NUMBER
 	IDENTIFIER
 	OPAREN
 	CPAREN
@@ -28,7 +29,8 @@ var tokenKindName = map[TokenKind]string{
 	PLUS:		"PLUS",
 	COMMA:		"COMMA",
 	BLOCK:		"BLOCK",	// ::
-	LITERAL:	"LITERAL",
+	STRING:		"STRING",
+	NUMBER:		"NUMBER",
 	IDENTIFIER:	"IDENTIFIER",
 	OPAREN:		"OPAREN",
 	CPAREN:		"CPAREN",
@@ -76,6 +78,16 @@ func (l *Lexer) next() rune {
 	}
 }
 
+func (l *Lexer) number() Token {
+	start := l.pos
+
+	for unicode.IsDigit(l.curr()) {
+		l.next()
+	}
+
+	return Token{NUMBER, l.src[start:l.pos], start}
+}
+
 func (l *Lexer) identifier() Token {
 	start := l.pos
 
@@ -91,7 +103,7 @@ func (l *Lexer) identifier() Token {
 	return Token{IDENTIFIER, l.src[start:l.pos], start}
 }
 
-func (l *Lexer) literal() Token {
+func (l *Lexer) str() Token {
 	start := l.pos
 	// consume opening quote
 	quote := l.next()
@@ -106,7 +118,7 @@ func (l *Lexer) literal() Token {
 
 	l.next()
 
-	return Token{LITERAL, l.src[start:l.pos], start}
+	return Token{STRING, l.src[start:l.pos], start}
 }
 
 func (l *Lexer) Next() (Token) {
@@ -135,12 +147,16 @@ func (l *Lexer) Next() (Token) {
 		return Token{ILLEGAL, "erroneous ':'", start}
 	case '"':
 		l.pos = start
-		return l.literal()
+		return l.str()
 	case '\'':
 		l.pos = start
-		return l.literal()
+		return l.str()
 	default:
 		l.pos = start
-		return l.identifier()
+		if unicode.IsDigit(l.curr()) {
+			return l.number()
+		} else {
+			return l.identifier()
+		}
 	}
 }

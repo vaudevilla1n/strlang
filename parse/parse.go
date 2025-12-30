@@ -2,19 +2,31 @@
 	grammar:
 
 	expression	::= primary (operator primary)*
-	primary		::= func | literal | group
-	func		::= builtin '::(' (expression ',')* expression ')'
+
+	primary		::= func | string | group
 	group		::= '(' expression ')'
-	literal		::= ''' .* ''' | '"' .* '"'
+	string		::= ''' .* ''' | '"' .* '"'
+
+	func		::= builtin '::(' args ')'
+	args		::= expression ( ',' expression | number )*
+	number		::= [0-9]+
+
 	operator	::= '+'
 
 	ast:
 
-	expression	::= binary | func | group | literal
+	expression	::= binary | func | group | string
+
 	binary		::= expression operator expression
-	func		::= builtin '::(' (expression ',')* expression ')'
+
+	func		::= builtin '::(' args ')'
+	args		::= expression ( ',' expression | number )*
+	number		::= [0-9]
+
 	group		::= '(' expression ')'
-	literal		::= ''' .* ''' | '"' .* '"'
+
+	string		::= ''' .* ''' | '"' .* '"'
+
 	operator	::= '+'
 */
 package parse
@@ -40,14 +52,14 @@ type ParseError struct {
 
 func (e *ParseError) Error() string {
 	if e.token.Kind == lex.EOF {
-		return fmt.Sprintf("parser error: pos %d: %s", e.token.Pos, e.msg)
+		return fmt.Sprintf("parser error: pos %d: %s", e.token.Pos + 1, e.msg)
 	} else {
-		return fmt.Sprintf("parser error: pos %d: '%s': %s", e.token.Pos, e.token.Text, e.msg)
+		return fmt.Sprintf("parser error: pos %d: '%s': %s", e.token.Pos + 1, e.token.Text, e.msg)
 	}
 }
 
 func (p *Parser) atEOF() bool {
-	if p.pos >= len(p.tokens) {
+	if p.pos + 1 >= len(p.tokens) {
 		return true
 	} else {
 		return false
@@ -103,8 +115,8 @@ func (p *Parser) expect(msg string, kinds ...lex.TokenKind) *ParseError {
 func (p *Parser) primary() (Expr, error) {
 	t := p.advance()
 	switch (t.Kind) {
-	case lex.LITERAL:
-		return &literalExpr{t}, nil
+	case lex.STRING:
+		return &stringExpr{t}, nil
 
 	case lex.OPAREN:
 		expr, err := p.expression()
@@ -129,28 +141,31 @@ func (p *Parser) primary() (Expr, error) {
 		oparen := p.tokens[p.pos - 1]
 
 		var args []Expr
-		for !p.atEOF() {
-			expr, err := p.expression()
-			if err != nil {
+
+		if arg, err := p.expression(); err == nil {
+			args = append(args, arg)
+		} else {
+			return nil, err
+		}
+
+		for !p.atEOF() && !p.check(lex.CPAREN) {
+			if !p.check(lex.COMMA) {
+				return nil, p.err("expected comma after function argument")
+			}
+			p.advance()
+
+			if p.check(lex.NUMBER) {
+				n := p.advance()
+				args = append(args, &numberExpr{n})
+			} else if arg, err := p.expression(); err == nil {
+				args = append(args, arg)
+			} else {
 				return nil, err
 			}
-
-			args = append(args, expr)
-
-			if p.check(lex.COMMA) {
-				p.advance()
-				continue
-			}
-
-			if p.check(lex.CPAREN) {
-				break
-			}
-
-			return nil, p.err("no comma or closing parentheses after function argument(s)")
 		}
 
 		cparen := p.curr()
-		if err := p.expect("no comma or closing parentheses after function argument(s)", lex.CPAREN); err != nil {
+		if err := p.expect("expected closing parentheses after function argument(s)", lex.CPAREN); err != nil {
 			return nil, err
 		}
 
@@ -159,6 +174,7 @@ func (p *Parser) primary() (Expr, error) {
 	case lex.EOF:
 		return nil, p.err("I expected more from you")
 	default:
+		p.pos -= 1
 		return nil, p.err("unexpected token")
 	}
 

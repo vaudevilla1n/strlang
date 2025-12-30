@@ -1,21 +1,32 @@
 /*
 	grammar:
 
-	expression	::= term
-	term		::= primary operator primary
-	primary		::= func | literal | group
-	func		::= builtin '::(' (expression ',')* expression ')'
+	expression	::= primary (operator primary)*
+
+	primary		::= func | string | group
 	group		::= '(' expression ')'
-	literal		::= ''' .* ''' | '"' .* '"'
+	string		::= ''' .* ''' | '"' .* '"'
+
+	func		::= builtin '::(' args ')'
+	args		::= expression ( ',' expression | number )*
+	number		::= [0-9]+
+
 	operator	::= '+'
 
 	ast:
 
-	expression	::= binary | func | group | literal
+	expression	::= binary | func | group | string
+
 	binary		::= expression operator expression
-	func		::= builtin '::(' (expression ',')* expression ')'
+
+	func		::= builtin '::(' args ')'
+	args		::= expression ( ',' expression | number )*
+	number		::= [0-9]
+
 	group		::= '(' expression ')'
-	literal		::= ''' .* ''' | '"' .* '"'
+
+	string		::= ''' .* ''' | '"' .* '"'
+
 	operator	::= '+'
 */
 package main
