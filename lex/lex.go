@@ -81,6 +81,10 @@ func (l *Lexer) next() rune {
 func (l *Lexer) number() Token {
 	start := l.pos
 
+	if l.curr() == '-' {
+		l.next()
+	}
+
 	for unicode.IsDigit(l.curr()) {
 		l.next()
 	}
@@ -131,7 +135,7 @@ func (l *Lexer) Next() (Token) {
 	}
 
 	start := l.pos
-	switch (l.next()) {
+	switch l.next() {
 	case '(':
 		return Token{OPAREN, l.src[start:l.pos], start}
 	case ')':
@@ -140,6 +144,9 @@ func (l *Lexer) Next() (Token) {
 		return Token{COMMA, l.src[start:l.pos], start}
 	case '+':
 		return Token{PLUS, l.src[start:l.pos], start}
+	case '-':
+		l.pos = start
+		return l.number()
 	case ':':
 		if l.next() == ':' {
 			return Token{BLOCK, l.src[start:l.pos], start}

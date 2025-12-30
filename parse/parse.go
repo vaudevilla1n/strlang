@@ -34,6 +34,7 @@ package parse
 import (
 	"fmt"
 	"strlang/lex"
+	e "strlang/expression"
 )
 
 type Parser struct {
@@ -112,11 +113,11 @@ func (p *Parser) expect(msg string, kinds ...lex.TokenKind) *ParseError {
 	return nil
 }
 
-func (p *Parser) primary() (Expr, error) {
+func (p *Parser) primary() (e.Expr, error) {
 	t := p.advance()
-	switch (t.Kind) {
+	switch t.Kind {
 	case lex.STRING:
-		return &stringExpr{t}, nil
+		return &e.StringExpr{t}, nil
 
 	case lex.OPAREN:
 		expr, err := p.expression()
@@ -130,7 +131,7 @@ func (p *Parser) primary() (Expr, error) {
 			return nil, err
 		}
 
-		return &groupExpr{t, expr, end}, nil
+		return &e.GroupExpr{t, expr, end}, nil
 
 	case lex.IDENTIFIER:
 		if err := p.expect("expected '::(' after function identifier", lex.BLOCK, lex.OPAREN); err != nil {
@@ -140,7 +141,7 @@ func (p *Parser) primary() (Expr, error) {
 		block := p.tokens[p.pos - 2]
 		oparen := p.tokens[p.pos - 1]
 
-		var args []Expr
+		var args []e.Expr
 
 		if arg, err := p.expression(); err == nil {
 			args = append(args, arg)
@@ -156,7 +157,7 @@ func (p *Parser) primary() (Expr, error) {
 
 			if p.check(lex.NUMBER) {
 				n := p.advance()
-				args = append(args, &numberExpr{n})
+				args = append(args, &e.NumberExpr{n})
 			} else if arg, err := p.expression(); err == nil {
 				args = append(args, arg)
 			} else {
@@ -169,7 +170,7 @@ func (p *Parser) primary() (Expr, error) {
 			return nil, err
 		}
 
-		return &funcExpr{t, block, oparen, args, cparen}, nil
+		return &e.FuncExpr{t, block, oparen, args, cparen}, nil
 
 	case lex.EOF:
 		return nil, p.err("I expected more from you")
@@ -180,7 +181,7 @@ func (p *Parser) primary() (Expr, error) {
 
 }
 
-func (p *Parser) expression() (Expr, error) {
+func (p *Parser) expression() (e.Expr, error) {
 // love you
 	expr, err := p.primary()
 	if err != nil {
@@ -194,13 +195,13 @@ func (p *Parser) expression() (Expr, error) {
 			return nil, err
 		}
 
-		expr = &binaryExpr{expr, op, right}
+		expr = &e.BinaryExpr{expr, op, right}
 	}
 
 	return expr, nil
 }
 
-func (p *Parser) Parse() (Expr, error) {
+func (p *Parser) Parse() (e.Expr, error) {
 	if expr, err := p.expression(); err != nil {
 		return nil, err
 	} else if !p.atEOF() {

@@ -1,5 +1,8 @@
+SRC = $(wildcard *.go)
+SRC += $(wildcard */*.go)
 
-SRC = $(wildcard */*.go)
+
+.PHONY: all run clean
 
 all: strlang
 
@@ -8,3 +11,6 @@ run: strlang
 
 strlang: $(SRC)
 	go build .
+
+clean:
+	rm -f ./strlang
