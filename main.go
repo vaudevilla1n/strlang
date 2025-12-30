@@ -63,18 +63,12 @@ func run(line string) {
 		return
 	} 
 
-	for _, token := range tokens {
-		fmt.Println(token.String())
-	}
-
 	parser := parse.NewParser(tokens)
 	if expr, err := parser.Parse(); err == nil {
-		fmt.Println(expr.String())
-
 		if val, err := expr.Eval(); err == nil {
 			fmt.Printf("\"%s\"\n", val)
 		} else {
-			fmt.Println(err.Error())
+			fmt.Fprintln(os.Stderr, err.Error())
 		}
 	} else {
 		fmt.Fprintln(os.Stderr, err.Error())
