@@ -11,9 +11,10 @@
 
 	ast
 
-	expression	::= binary | func | group | literal
-	binary		::= expression operator expression
-	func		::= builtin argument_count expression+
+	expression	::= binary | primary
+	binary		::= expression (operator expression)*
+	primary		::= func | group | literal
+	func		::= builtin expression+
 	group		::= '(' expression ')'
 	literal		::= string literal
 	operator	::= '+'

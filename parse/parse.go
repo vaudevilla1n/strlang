@@ -1,7 +1,9 @@
 /*
-	expression	::= binary | func | group | literal
-	binary		::= expression operator expression
-	func		::= builtin argument_count expression+
+	expression	::= binary | primary
+	binary		::= expression (operator expression)*
+	primary		::= func | literal
+	func		::= builtin expression+
+	literal		::= func | group | literal
 	group		::= '(' expression ')'
 	literal		::= string literal
 	operator	::= '+'
@@ -14,22 +16,14 @@ import (
 	"strlang/lex"
 )
 
-type NodeKind int
+type LiteralKind int
 
 const (
-	EOF 		NodeKind = iota 
-	ERROR 
-	FUNC
-	BINARY
-	GROUP
+	GROUP	LiteralKind = iota 
 	LITERAL
 )
 
-var nodeKindName = map[NodeKind]string {
-	EOF:		"EOF",
-	ERROR:		"ERROR",
-	FUNC:		"FUNC",
-	BINARY:		"BINARY",
+var literalKindName = map[LiteralKind]string {
 	GROUP:		"GROUP",
 	LITERAL:	"LITERAL",
 }
@@ -43,18 +37,31 @@ func NewParser(tokens []lex.Token) Parser {
 	return Parser{tokens, 0}
 }
 
-type Node struct {
-	Kind NodeKind
+type Literal struct {
+	Kind LiteralKind
 	tokens []lex.Token
 }
 
-func (n *Node) String() string {
+func (p *Literal) String() string {
 	var tstrs []string
-	for _, token := range n.tokens {
+	for _, token := range p.tokens {
 		tstrs = append(tstrs, token.String())
 	}
 
-	return fmt.Sprintf("%s: { %s }", nodeKindName[n.Kind], strings.Join(tstrs, ", "))
+	return fmt.Sprintf("%s: { %s }", literalKindName[p.Kind], strings.Join(tstrs, ", "))
+}
+
+type Function struct {
+	builtin Literal
+	arguments []Literal
+}
+
+func (p *parser) atEOF() bool {
+	if p.pos >= len(p.tokens) {
+		return true
+	] else {
+		return false
+	}
 }
 
 func (p *Parser) curr() lex.Token {
@@ -67,7 +74,7 @@ func (p *Parser) curr() lex.Token {
 	}
 }
 
-func (p *Parser) next() lex.Token {
+func (p *Parser) advance() lex.Token {
 	t := p.curr()
 	if (t.Kind != lex.EOF) {
 		p.pos += 1
@@ -75,58 +82,131 @@ func (p *Parser) next() lex.Token {
 	return t;
 }
 
+func (p *Parser) check(kinds ...lex.TokenKind) bool {
+	for _, kind := range kinds {
+		if p.curr().Kind == kind {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (p *Parser) expect(kinds ...lex.TokenKind) bool {
 	for _, kind := range kinds {
-		if p.curr().Kind != kind {
+		if !p.check(kind) {
 			return false
 		}
 		
-		p.next()
+		p.advance()
 	}
 
 	return true
 }
 
-func (p *Parser) Next() Node {
+func (p *Parser) literal() (Literal, string) {
 	start := p.pos
-	switch (p.next().Kind) {
-	case lex.EOF:
-		return Node{EOF, p.tokens[start: p.pos]}
 
+	switch (p.advance().Kind) {
 	case lex.LITERAL:
-		return Node{LITERAL, p.tokens[start: p.pos]}
+		return Literal{LITERAL, p.tokens[start: p.pos]}, nil
 
 	case lex.OPAREN:
 		for p.curr().Kind != lex.EOF && p.curr().Kind != lex.CPAREN {
-			p.next()
+			p.advance()
 		}
 
-		var kind NodeKind
+		var kind LiteralKind
 		if !p.expect(lex.CPAREN) {
 			kind = ERROR
 		} else {
 			kind = GROUP
 		}
 
-		return Node{kind, p.tokens[start:p.pos]}
+		return Literal{kind, p.tokens[start:p.pos]}, nil
 
 	case lex.IDENTIFIER:
 		if !p.expect(lex.BLOCK, lex.OPAREN) {
-			return Node{ERROR, p.tokens[start:p.pos]}
+			return Literal{ERROR, p.tokens[start:p.pos]}
 		}
 
 		for p.curr().Kind != lex.CPAREN {
-			p.next()
+			p.advance()
 		}
 
 		if !p.expect(lex.CPAREN) {
-			return Node{ERROR, p.tokens[start:p.pos]}
+			return Literal{ERROR, p.tokens[start:p.pos]}
 		}
 
-		return Node{FUNC, p.tokens[start:p.pos]}
+		return Literal{FUNC, p.tokens[start:p.pos]}, nil
 
+	case lex.EOF:
+		return nil, "expected token(s)"
 	default:
-		return Node{ERROR, p.tokens[start:p.pos]}
+		return nil, "unexpected token"
 	}
 
+}
+
+func (p *Parser) function() Function, string {
+	if (!p.expect(lex.IDENTIFIER))
+		return nil, "expected function name"
+	if (!p.expect(lex.BLOCK, lex.OPAREN))
+		return nil, "expected '::(' after function name"
+
+	var args []Literal
+	
+	for !p.atEOF() && !p.check(lex.EOF) {
+		literal, err := p.literal()
+		if err != nil {
+			return nil, err
+		}
+
+		args = append(args, literal)
+	}
+
+	if (!p.expect(lex.CPAREN))
+		return nil, "expected closing parenthese"
+
+	return Function{builtin, args}
+}
+
+type Primary interface {
+	Literal | Function
+}
+
+type Binary struct {
+	left Primary
+	op lex.Token
+	right Primary
+}
+
+func (p *Parser) primary() (Primary, string) {
+	switch p.curr().Kind {
+	case lex.IDENTIFER:
+		return p.function()
+	default:
+		return p.literal()
+	}
+}
+
+func (p *Parser) binary() Binary {
+	var b Binary
+
+	b.left, err := p.primary()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.check(lex.PLUS) {
+		op = p.advance()
+
+		right, err := p.primary()
+		if err != nil {
+			return nil, err
+		}
+
+		b = Binary{b.left, op, right}
+	}
+// love you
 }
