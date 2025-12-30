@@ -1,22 +1,21 @@
 /*
-	grammar
+	grammar:
 
 	expression	::= term
-	term		::= primary '+' primary
-	primary		::= func | string | group
-	func		::= builtin '::(' expression (',' expression)* ')'
-	string		::= '"' text '"' | ''' text '''
+	term		::= primary operator primary
+	primary		::= func | literal | group
+	func		::= builtin '::(' (expression ',')* expression ')'
 	group		::= '(' expression ')'
-	builtin		::= any builtin function
+	literal		::= ''' .* ''' | '"' .* '"'
+	operator	::= '+'
 
-	ast
+	ast:
 
-	expression	::= binary | primary
-	binary		::= expression (operator expression)*
-	primary		::= func | group | literal
-	func		::= builtin expression+
+	expression	::= binary | func | group | literal
+	binary		::= expression operator expression
+	func		::= builtin '::(' (expression ',')* expression ')'
 	group		::= '(' expression ')'
-	literal		::= string literal
+	literal		::= ''' .* ''' | '"' .* '"'
 	operator	::= '+'
 */
 package main
@@ -58,8 +57,10 @@ func run(line string) {
 	}
 
 	parser := parse.NewParser(tokens)
-	for n := parser.Next(); n.Kind != parse.EOF && n.Kind != parse.ERROR; n = parser.Next() {
-		fmt.Println(n.String())
+	if expr, err := parser.Parse(); err == nil {
+		fmt.Println(expr.String())
+	} else {
+		fmt.Fprintln(os.Stderr, err.Error())
 	}
 }
 

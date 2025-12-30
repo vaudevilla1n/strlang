@@ -1,32 +1,28 @@
 /*
-	expression	::= binary | primary
-	binary		::= expression (operator expression)*
-	primary		::= func | literal
-	func		::= builtin expression+
-	literal		::= func | group | literal
+	grammar:
+
+	expression	::= primary (operator primary)*
+	primary		::= func | literal | group
+	func		::= builtin '::(' (expression ',')* expression ')'
 	group		::= '(' expression ')'
-	literal		::= string literal
+	literal		::= ''' .* ''' | '"' .* '"'
+	operator	::= '+'
+
+	ast:
+
+	expression	::= binary | func | group | literal
+	binary		::= expression operator expression
+	func		::= builtin '::(' (expression ',')* expression ')'
+	group		::= '(' expression ')'
+	literal		::= ''' .* ''' | '"' .* '"'
 	operator	::= '+'
 */
 package parse
 
 import (
 	"fmt"
-	"strings"
 	"strlang/lex"
 )
-
-type LiteralKind int
-
-const (
-	GROUP	LiteralKind = iota 
-	LITERAL
-)
-
-var literalKindName = map[LiteralKind]string {
-	GROUP:		"GROUP",
-	LITERAL:	"LITERAL",
-}
 
 type Parser struct {
 	tokens []lex.Token
@@ -37,29 +33,23 @@ func NewParser(tokens []lex.Token) Parser {
 	return Parser{tokens, 0}
 }
 
-type Literal struct {
-	Kind LiteralKind
-	tokens []lex.Token
+type ParseError struct {
+	token lex.Token
+	msg string
 }
 
-func (p *Literal) String() string {
-	var tstrs []string
-	for _, token := range p.tokens {
-		tstrs = append(tstrs, token.String())
+func (e *ParseError) Error() string {
+	if e.token.Kind == lex.EOF {
+		return fmt.Sprintf("parser error: pos %d: %s", e.token.Pos, e.msg)
+	} else {
+		return fmt.Sprintf("parser error: pos %d: '%s': %s", e.token.Pos, e.token.Text, e.msg)
 	}
-
-	return fmt.Sprintf("%s: { %s }", literalKindName[p.Kind], strings.Join(tstrs, ", "))
 }
 
-type Function struct {
-	builtin Literal
-	arguments []Literal
-}
-
-func (p *parser) atEOF() bool {
+func (p *Parser) atEOF() bool {
 	if p.pos >= len(p.tokens) {
 		return true
-	] else {
+	} else {
 		return false
 	}
 }
@@ -92,121 +82,114 @@ func (p *Parser) check(kinds ...lex.TokenKind) bool {
 	return false
 }
 
-func (p *Parser) expect(kinds ...lex.TokenKind) bool {
+func (p *Parser) err(msg string) *ParseError {
+	return &ParseError{p.curr(), msg}
+}
+
+func (p *Parser) expect(msg string, kinds ...lex.TokenKind) *ParseError {
+	start := p.pos
 	for _, kind := range kinds {
 		if !p.check(kind) {
-			return false
+			p.pos = start
+			return p.err(msg)
 		}
 		
 		p.advance()
 	}
 
-	return true
+	return nil
 }
 
-func (p *Parser) literal() (Literal, string) {
-	start := p.pos
-
-	switch (p.advance().Kind) {
+func (p *Parser) primary() (Expr, error) {
+	t := p.advance()
+	switch (t.Kind) {
 	case lex.LITERAL:
-		return Literal{LITERAL, p.tokens[start: p.pos]}, nil
+		return &literalExpr{t}, nil
 
 	case lex.OPAREN:
-		for p.curr().Kind != lex.EOF && p.curr().Kind != lex.CPAREN {
-			p.advance()
-		}
-
-		var kind LiteralKind
-		if !p.expect(lex.CPAREN) {
-			kind = ERROR
-		} else {
-			kind = GROUP
-		}
-
-		return Literal{kind, p.tokens[start:p.pos]}, nil
-
-	case lex.IDENTIFIER:
-		if !p.expect(lex.BLOCK, lex.OPAREN) {
-			return Literal{ERROR, p.tokens[start:p.pos]}
-		}
-
-		for p.curr().Kind != lex.CPAREN {
-			p.advance()
-		}
-
-		if !p.expect(lex.CPAREN) {
-			return Literal{ERROR, p.tokens[start:p.pos]}
-		}
-
-		return Literal{FUNC, p.tokens[start:p.pos]}, nil
-
-	case lex.EOF:
-		return nil, "expected token(s)"
-	default:
-		return nil, "unexpected token"
-	}
-
-}
-
-func (p *Parser) function() Function, string {
-	if (!p.expect(lex.IDENTIFIER))
-		return nil, "expected function name"
-	if (!p.expect(lex.BLOCK, lex.OPAREN))
-		return nil, "expected '::(' after function name"
-
-	var args []Literal
-	
-	for !p.atEOF() && !p.check(lex.EOF) {
-		literal, err := p.literal()
+		expr, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
 
-		args = append(args, literal)
-	}
+		end := p.curr()
 
-	if (!p.expect(lex.CPAREN))
-		return nil, "expected closing parenthese"
+		if err := p.expect("expected closing parentheses", lex.CPAREN); err != nil {
+			return nil, err
+		}
 
-	return Function{builtin, args}
-}
+		return &groupExpr{t, expr, end}, nil
 
-type Primary interface {
-	Literal | Function
-}
+	case lex.IDENTIFIER:
+		if err := p.expect("expected '::(' after function identifier", lex.BLOCK, lex.OPAREN); err != nil {
+			return nil, err
+		}
 
-type Binary struct {
-	left Primary
-	op lex.Token
-	right Primary
-}
+		block := p.tokens[p.pos - 2]
+		oparen := p.tokens[p.pos - 1]
 
-func (p *Parser) primary() (Primary, string) {
-	switch p.curr().Kind {
-	case lex.IDENTIFER:
-		return p.function()
+		var args []Expr
+		for !p.atEOF() {
+			expr, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+
+			args = append(args, expr)
+
+			if p.check(lex.COMMA) {
+				p.advance()
+				continue
+			}
+
+			if p.check(lex.CPAREN) {
+				break
+			}
+
+			return nil, p.err("no comma or closing parentheses after function argument(s)")
+		}
+
+		cparen := p.curr()
+		if err := p.expect("no comma or closing parentheses after function argument(s)", lex.CPAREN); err != nil {
+			return nil, err
+		}
+
+		return &funcExpr{t, block, oparen, args, cparen}, nil
+
+	case lex.EOF:
+		return nil, p.err("I expected more from you")
 	default:
-		return p.literal()
+		return nil, p.err("unexpected token")
 	}
+
 }
 
-func (p *Parser) binary() Binary {
-	var b Binary
-
-	b.left, err := p.primary()
+func (p *Parser) expression() (Expr, error) {
+// love you
+	expr, err := p.primary()
 	if err != nil {
 		return nil, err
 	}
 
 	for p.check(lex.PLUS) {
-		op = p.advance()
-
+		op := p.advance()
 		right, err := p.primary()
 		if err != nil {
 			return nil, err
 		}
 
-		b = Binary{b.left, op, right}
+		expr = &binaryExpr{expr, op, right}
 	}
-// love you
+
+	return expr, nil
+}
+
+func (p *Parser) Parse() (Expr, error) {
+	if expr, err := p.expression(); err != nil {
+		return nil, err
+	} else if !p.atEOF() {
+		return nil, p.err("erroneous token")
+	} else {
+		return expr, nil
+	}
 }
