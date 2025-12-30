@@ -155,9 +155,28 @@ func __substr(args ...string) (string, error) {
 	return "", &EvalError{err}
 }
 
+func __repeat(args ...string) (string, error) {
+	if err := expect_argument_count("repeat", 2, args); err != nil {
+		return "", err
+	}
+
+	count, err := strconv.Atoi(args[1])
+	if err != nil || count < 0 {
+		return "", &EvalError{"repeat: second argument is not a valid integer"}
+	}
+
+	var s string
+	for i := 0; i < count; i++ {
+		s += args[0]
+	}
+
+	return s, nil
+}
+
 var builtinFuncMap = map[string]builtinFunc {
 	"reverse":	__reverse,
 	"substr":	__substr,
+	"repeat":	__repeat,
 }
 
 /*
